@@ -1,0 +1,7 @@
+version: "1.1.0"
+description: rs485
+dependencies:
+  task:
+    version: "main"
+    git: https://github.com/rbliznets/esp32-task.git
+  idf: ">=5.4"
