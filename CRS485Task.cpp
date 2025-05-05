@@ -4,7 +4,6 @@
 	\authors Близнец Р.А. (r.bliznets@gmail.com)
 	\version 1.1.0.0
 	\date 22.11.2023
-	\copyright (c) Copyright 2023, ООО "Глобал Ориент", Москва, Россия, https://github.com/Global-Orient/Gonets
 */
 
 #include "CRS485Task.h"
