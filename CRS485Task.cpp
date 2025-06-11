@@ -238,7 +238,7 @@ endTask:
 	xQueueRemoveFromSet(mTaskQueue, mQueueSet);
 }
 
-bool CRS485Task::sendData(char *data, size_t size)
+bool CRS485Task::sendData(char *data, size_t size, TickType_t xTicksToWait)
 {
 	assert(data != nullptr);
 	assert(size < RS485_TX_BUF);
@@ -247,5 +247,5 @@ bool CRS485Task::sendData(char *data, size_t size)
 
 	uint8_t *dt = allocNewMsg(&msg, MSG_SEND_DATA, size, true);
 	std::memcpy(dt, data, size);
-	return sendMessage(&msg, 1, true);
+	return sendMessage(&msg, xTicksToWait, true);
 }

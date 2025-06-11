@@ -96,9 +96,10 @@ public:
 	/*!
 	  \param[in] data данные.
 	  \param[in] size размер данных.
+	  \param[in] xTicksToWait Время ожидания в тиках.
 	  \return true в случае успеха.
 	*/
-	bool sendData(char *data, size_t size);
+	bool sendData(char *data, size_t size, TickType_t xTicksToWait = 1);
 
 	/// Инициализация перед light sleep.
 	void wakeupConfig();
