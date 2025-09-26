@@ -67,6 +67,7 @@ void CRS485Task::initUart()
 		ESP_ERROR_CHECK(uart_driver_install(mConfig.port, RS485_RX_BUF, RS485_TX_BUF, RS485_EVEN_BUF, &m_uart_queue, intr_alloc_flags));
 		xQueueAddToSet(m_uart_queue, mQueueSet);
 		ESP_ERROR_CHECK(uart_param_config(mConfig.port, &uart_config));
+		ESP_ERROR_CHECK(uart_set_rx_timeout(mConfig.port, 1));
 		if (mConfig.mode == UART_MODE_UART)
 		{
 			ESP_ERROR_CHECK(uart_set_pin(mConfig.port, mConfig.pin_tx, mConfig.pin_rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
@@ -144,6 +145,7 @@ void CRS485Task::run()
 				switch (event.type)
 				{
 				case UART_DATA:
+					// TDEC("!",event.size);
 					while (event.size > 0)
 					{
 						if (event.size <= sizeof(mBuf))
@@ -154,7 +156,7 @@ void CRS485Task::run()
 						{
 							read_len = uart_read_bytes(mConfig.port, mBuf, sizeof(mBuf), 0);
 						}
-						if(read_len > 0)
+						if (read_len > 0)
 						{
 							event.size -= read_len;
 							if (mConfig.onUartDataRx != nullptr)
@@ -168,12 +170,12 @@ void CRS485Task::run()
 					break;
 				case UART_FIFO_OVF:
 					TRACE_W("CRS485Task: HW FIFO Overflow", event.type, false);
-					uart_flush(mConfig.port);
+					uart_flush_input(mConfig.port);
 					xQueueReset(m_uart_queue);
 					break;
 				case UART_BUFFER_FULL:
 					TRACE_W("CRS485Task: Ring Buffer Full", event.type, false);
-					uart_flush(mConfig.port);
+					uart_flush_input(mConfig.port);
 					xQueueReset(m_uart_queue);
 					break;
 				case UART_BREAK:
@@ -198,22 +200,49 @@ void CRS485Task::run()
 		}
 		else if (xActivatedMember == mTaskQueue)
 		{
-			bool collision_flag;
+			bool collision_flag = false;
+			size_t size;
 			while (getMessage(&msg))
 			{
 				switch (msg.msgID)
 				{
 				case MSG_SEND_DATA:
-					uart_write_bytes(mConfig.port, msg.msgBody, msg.shortParam);
-					vPortFree(msg.msgBody);
-					uart_wait_tx_done(mConfig.port, pdMS_TO_TICKS(TASK_MAX_BLOCK_TIME));
 					if (mConfig.mode == UART_MODE_RS485_COLLISION_DETECT)
 					{
-						if (uart_get_collision_flag(mConfig.port, &collision_flag) == ESP_OK)
+						if(uart_get_buffered_data_len(mConfig.port,&size) == ESP_OK)
 						{
-							if (collision_flag)
-								TRACE_E("CRS485Task collision", collision_flag, false);
+							if(size != 0)
+							{
+								// TDEC("size",size);
+								collision_flag = true;
+								sendMessageFront(&msg, 0, true);
+								break;
+							}
 						}
+						uart_write_bytes(mConfig.port, msg.msgBody, msg.shortParam);
+						if (uart_wait_tx_done(mConfig.port, pdMS_TO_TICKS(TASK_MAX_BLOCK_TIME)) == ESP_OK)
+						{
+							if (uart_get_collision_flag(mConfig.port, &collision_flag) == ESP_OK)
+							{
+								if (collision_flag)
+								{
+									TRACE_E("CRS485Task collision", collision_flag, false);
+									sendMessageFront(&msg, 0, true);
+									break;
+								}
+							}
+						}
+						else
+						{
+							TRACE_E("uart_wait_tx_done", -1, false);
+						}
+						vPortFree(msg.msgBody);
+					}
+					else
+					{
+						uart_write_bytes(mConfig.port, msg.msgBody, msg.shortParam);
+						vPortFree(msg.msgBody);
+						uart_wait_tx_done(mConfig.port, pdMS_TO_TICKS(TASK_MAX_BLOCK_TIME));
 					}
 					break;
 				case MSG_END_TASK:
@@ -222,6 +251,8 @@ void CRS485Task::run()
 					TRACE_WARNING("CRS485Task:unknown message", msg.msgID);
 					break;
 				}
+				if (collision_flag)
+					break;
 			}
 		}
 #ifndef CONFIG_FREERTOS_CHECK_STACKOVERFLOW_NONE
