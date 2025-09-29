@@ -9,6 +9,7 @@
 #include "CRS485Task.h"
 #include "CTrace.h"
 #include "driver/gpio.h"
+#include "driver/uart_wakeup.h"
 #include "esp_sleep.h"
 #include <cstring>
 
@@ -52,7 +53,7 @@ void CRS485Task::initUart()
 			.parity = UART_PARITY_DISABLE,
 			.stop_bits = UART_STOP_BITS_1,
 			.flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-			.rx_flow_ctrl_thresh = 0,
+			.rx_flow_ctrl_thresh = 3,
 			.source_clk = UART_SCLK_DEFAULT,
 			.flags = {0, 0}};
 		int intr_alloc_flags = 0;
@@ -62,7 +63,7 @@ void CRS485Task::initUart()
 #endif
 
 #if CONFIG_PM_ENABLE
-		esp_pm_lock_acquire(mPMLock);
+		// esp_pm_lock_acquire(mPMLock);
 #endif
 		ESP_ERROR_CHECK(uart_driver_install(mConfig.port, RS485_RX_BUF, RS485_TX_BUF, RS485_EVEN_BUF, &m_uart_queue, intr_alloc_flags));
 		xQueueAddToSet(m_uart_queue, mQueueSet);
@@ -88,14 +89,20 @@ void CRS485Task::initUart()
 		ESP_ERROR_CHECK(uart_flush(mConfig.port));
 		mRun = true;
 
+#if CONFIG_PM_ENABLE
+		// wakeupConfig();
+		uart_wakeup_cfg_t cfg = {UART_WK_MODE_ACTIVE_THRESH,3};
+		uart_wakeup_setup(mConfig.port, &cfg);
+#endif
 		// LOG("CRS485Task Run");
 	}
 }
 
 void CRS485Task::wakeupConfig()
 {
-	ESP_ERROR_CHECK(gpio_sleep_set_direction((gpio_num_t)mConfig.pin_rx, GPIO_MODE_INPUT));
-	ESP_ERROR_CHECK(gpio_sleep_set_pull_mode((gpio_num_t)mConfig.pin_rx, GPIO_PULLUP_ONLY));
+	// ESP_ERROR_CHECK(gpio_sleep_set_direction((gpio_num_t)mConfig.pin_rx, GPIO_MODE_INPUT));
+	// ESP_ERROR_CHECK(gpio_sleep_set_pull_mode((gpio_num_t)mConfig.pin_rx, GPIO_PULLUP_ONLY));
+	// rtc_gpio_wakeup_enable(gpio_num_t(mConfig.pin_rx), GPIO_INTR_HIGH_LEVEL);
 	ESP_ERROR_CHECK(uart_set_wakeup_threshold(mConfig.port, 3));
 	ESP_ERROR_CHECK(esp_sleep_enable_uart_wakeup(mConfig.port));
 }
@@ -108,6 +115,9 @@ void CRS485Task::deinitUart()
 
 		ESP_ERROR_CHECK(uart_wait_tx_done(mConfig.port, pdMS_TO_TICKS(150)));
 		ESP_ERROR_CHECK(uart_driver_delete(mConfig.port));
+#if CONFIG_PM_ENABLE
+		uart_wakeup_clear(mConfig.port, UART_WK_MODE_ACTIVE_THRESH);
+#endif
 		vTaskDelay(pdMS_TO_TICKS(10));
 		mRun = false;
 #if CONFIG_PM_ENABLE
@@ -191,6 +201,9 @@ void CRS485Task::run()
 					break;
 				case UART_WAKEUP:
 					uart_flush(mConfig.port);
+					esp_pm_lock_acquire(mPMLock);
+					// deinitUart();
+					// initUart();
 					break;
 				default:
 					TRACE_WARNING("CRS485Task unknown uart event type", event.type);
