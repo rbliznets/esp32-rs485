@@ -64,6 +64,7 @@ void CRS485Task::initUart()
 
 #if CONFIG_PM_ENABLE
 		esp_pm_lock_acquire(mPMLock);
+		mLock = true;
 		if (mConfig.blockSleep > 0)
 		{
 			if (mRS485Timer == nullptr)
@@ -126,7 +127,11 @@ void CRS485Task::deinitUart()
 		vTaskDelay(pdMS_TO_TICKS(10));
 		mRun = false;
 #if CONFIG_PM_ENABLE
-		esp_pm_lock_release(mPMLock);
+		if (mLock)
+		{
+			esp_pm_lock_release(mPMLock);
+			mLock = false;
+		}
 #endif
 		if (mConfig.pin_de >= 0)
 			gpio_set_direction((gpio_num_t)mConfig.pin_de, GPIO_MODE_DISABLE);
@@ -193,6 +198,11 @@ void CRS485Task::run()
 					{
 						if (mRS485Timer != nullptr)
 							mRS485Timer->start(this, ETimerEvent::SendBack, pdMS_TO_TICKS(mConfig.blockSleep));
+						if (!mLock)
+						{
+							esp_pm_lock_acquire(mPMLock);
+							mLock = true;
+						}
 					}
 #endif
 					break;
@@ -221,6 +231,7 @@ void CRS485Task::run()
 					uart_flush(mConfig.port);
 #if CONFIG_PM_ENABLE
 					esp_pm_lock_acquire(mPMLock);
+					mLock = true;
 					if (mConfig.blockSleep > 0)
 					{
 						if (mRS485Timer != nullptr)
@@ -287,8 +298,12 @@ void CRS485Task::run()
 					{
 						if (mRS485Timer != nullptr)
 							mRS485Timer->stop();
-						
-						esp_pm_lock_release(mPMLock);
+
+						if (mLock)
+						{
+							esp_pm_lock_release(mPMLock);
+							mLock = false;
+						}
 					}
 #endif
 					break;

@@ -34,9 +34,9 @@
 /*
  * Параметры задач
  */
-#define RS485TASK_NAME "rs485"				 ///< Имя задачи для отладки.
-#define RS485TASK_STACKSIZE (3 * 1024) 		///< Размер стека задачи (296).
-#define RS485TASK_LENGTH (30)				 ///< Длина приемной очереди задачи.
+#define RS485TASK_NAME "rs485"		   ///< Имя задачи для отладки.
+#define RS485TASK_STACKSIZE (3 * 1024) ///< Размер стека задачи (296).
+#define RS485TASK_LENGTH (30)		   ///< Длина приемной очереди задачи.
 
 /// Функция события приема данных.
 /*!
@@ -70,6 +70,7 @@ protected:
 #if CONFIG_PM_ENABLE
 	esp_pm_lock_handle_t mPMLock; ///< флаг запрета на понижение частоты CPU
 	CSoftwareTimer *mRS485Timer = nullptr;
+	bool mLock = false;
 #endif
 	SRS485Config mConfig; ///< Конфигурация драйвера rs-485
 
