@@ -1,7 +1,7 @@
-version: "1.1.0"
+version: "1.2.0"
 description: rs485 for esp32
 dependencies:
   task:
     version: "main"
     git: https://github.com/rbliznets/esp32-task.git
-  idf: ">=5.4"
+  idf: ">=5.5"

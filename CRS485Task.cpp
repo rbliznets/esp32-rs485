@@ -80,10 +80,8 @@ void CRS485Task::initUart()
 			ESP_ERROR_CHECK(uart_set_pin(mConfig.port, mConfig.pin_tx, mConfig.pin_rx, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 			if (mConfig.pin_de >= 0)
 			{
-				gpio_iomux_in(mConfig.pin_de, 1);
-				gpio_iomux_out(mConfig.pin_de, 1, false);
-				gpio_set_direction((gpio_num_t)mConfig.pin_de, GPIO_MODE_OUTPUT);
-				gpio_set_pull_mode((gpio_num_t)mConfig.pin_de, GPIO_PULLUP_ONLY);
+				gpio_config_t io_conf = {BIT64(mConfig.pin_de), GPIO_MODE_OUTPUT, GPIO_PULLUP_ENABLE, GPIO_PULLDOWN_DISABLE, GPIO_INTR_DISABLE};
+				gpio_config(&io_conf);
 				gpio_set_level((gpio_num_t)mConfig.pin_de, 1);
 			}
 		}
