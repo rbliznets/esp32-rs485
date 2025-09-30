@@ -63,7 +63,12 @@ void CRS485Task::initUart()
 #endif
 
 #if CONFIG_PM_ENABLE
-		// esp_pm_lock_acquire(mPMLock);
+		esp_pm_lock_acquire(mPMLock);
+		if (mConfig.blockSleep > 0)
+		{
+			if (mRS485Timer == nullptr)
+				mRS485Timer = new CSoftwareTimer(0, MSG_485_TIMEOUT);
+		}
 #endif
 		ESP_ERROR_CHECK(uart_driver_install(mConfig.port, RS485_RX_BUF, RS485_TX_BUF, RS485_EVEN_BUF, &m_uart_queue, intr_alloc_flags));
 		xQueueAddToSet(m_uart_queue, mQueueSet);
@@ -90,21 +95,15 @@ void CRS485Task::initUart()
 		mRun = true;
 
 #if CONFIG_PM_ENABLE
-		// wakeupConfig();
-		uart_wakeup_cfg_t cfg = {UART_WK_MODE_ACTIVE_THRESH,3};
-		uart_wakeup_setup(mConfig.port, &cfg);
+		if (mConfig.blockSleep > 0)
+		{
+			uart_wakeup_cfg_t cfg = {UART_WK_MODE_ACTIVE_THRESH, 3};
+			uart_wakeup_setup(mConfig.port, &cfg);
+			mRS485Timer->start(this, ETimerEvent::SendBack, pdMS_TO_TICKS(mConfig.blockSleep));
+		}
 #endif
 		// LOG("CRS485Task Run");
 	}
-}
-
-void CRS485Task::wakeupConfig()
-{
-	// ESP_ERROR_CHECK(gpio_sleep_set_direction((gpio_num_t)mConfig.pin_rx, GPIO_MODE_INPUT));
-	// ESP_ERROR_CHECK(gpio_sleep_set_pull_mode((gpio_num_t)mConfig.pin_rx, GPIO_PULLUP_ONLY));
-	// rtc_gpio_wakeup_enable(gpio_num_t(mConfig.pin_rx), GPIO_INTR_HIGH_LEVEL);
-	ESP_ERROR_CHECK(uart_set_wakeup_threshold(mConfig.port, 3));
-	ESP_ERROR_CHECK(esp_sleep_enable_uart_wakeup(mConfig.port));
 }
 
 void CRS485Task::deinitUart()
@@ -116,7 +115,13 @@ void CRS485Task::deinitUart()
 		ESP_ERROR_CHECK(uart_wait_tx_done(mConfig.port, pdMS_TO_TICKS(150)));
 		ESP_ERROR_CHECK(uart_driver_delete(mConfig.port));
 #if CONFIG_PM_ENABLE
-		uart_wakeup_clear(mConfig.port, UART_WK_MODE_ACTIVE_THRESH);
+		if (mRS485Timer != nullptr)
+		{
+			delete mRS485Timer;
+			mRS485Timer = nullptr;
+		}
+		if (mConfig.blockSleep > 0)
+			uart_wakeup_clear(mConfig.port, UART_WK_MODE_ACTIVE_THRESH);
 #endif
 		vTaskDelay(pdMS_TO_TICKS(10));
 		mRun = false;
@@ -155,7 +160,13 @@ void CRS485Task::run()
 				switch (event.type)
 				{
 				case UART_DATA:
-					// TDEC("!",event.size);
+#if CONFIG_PM_ENABLE
+					if (mConfig.blockSleep > 0)
+					{
+						if (mRS485Timer != nullptr)
+							mRS485Timer->stop();
+					}
+#endif
 					while (event.size > 0)
 					{
 						if (event.size <= sizeof(mBuf))
@@ -177,6 +188,13 @@ void CRS485Task::run()
 							event.size = 0;
 						}
 					}
+#if CONFIG_PM_ENABLE
+					if (mConfig.blockSleep > 0)
+					{
+						if (mRS485Timer != nullptr)
+							mRS485Timer->start(this, ETimerEvent::SendBack, pdMS_TO_TICKS(mConfig.blockSleep));
+					}
+#endif
 					break;
 				case UART_FIFO_OVF:
 					TRACE_W("CRS485Task: HW FIFO Overflow", event.type, false);
@@ -201,9 +219,14 @@ void CRS485Task::run()
 					break;
 				case UART_WAKEUP:
 					uart_flush(mConfig.port);
+#if CONFIG_PM_ENABLE
 					esp_pm_lock_acquire(mPMLock);
-					// deinitUart();
-					// initUart();
+					if (mConfig.blockSleep > 0)
+					{
+						if (mRS485Timer != nullptr)
+							mRS485Timer->start(this, ETimerEvent::SendBack, pdMS_TO_TICKS(mConfig.blockSleep));
+					}
+#endif
 					break;
 				default:
 					TRACE_WARNING("CRS485Task unknown uart event type", event.type);
@@ -222,9 +245,9 @@ void CRS485Task::run()
 				case MSG_SEND_DATA:
 					if (mConfig.mode == UART_MODE_RS485_COLLISION_DETECT)
 					{
-						if(uart_get_buffered_data_len(mConfig.port,&size) == ESP_OK)
+						if (uart_get_buffered_data_len(mConfig.port, &size) == ESP_OK)
 						{
-							if(size != 0)
+							if (size != 0)
 							{
 								// TDEC("size",size);
 								collision_flag = true;
@@ -257,6 +280,17 @@ void CRS485Task::run()
 						vPortFree(msg.msgBody);
 						uart_wait_tx_done(mConfig.port, pdMS_TO_TICKS(TASK_MAX_BLOCK_TIME));
 					}
+					break;
+				case MSG_485_TIMEOUT:
+#if CONFIG_PM_ENABLE
+					if (mConfig.blockSleep > 0)
+					{
+						if (mRS485Timer != nullptr)
+							mRS485Timer->stop();
+						
+						esp_pm_lock_release(mPMLock);
+					}
+#endif
 					break;
 				case MSG_END_TASK:
 					goto endTask;

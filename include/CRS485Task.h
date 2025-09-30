@@ -10,6 +10,7 @@
 
 #include "sdkconfig.h"
 #include "CBaseTask.h"
+#include "CSoftwareTimer.h"
 
 #include "esp_pm.h"
 #include "driver/uart.h"
@@ -28,6 +29,7 @@
 
 #define MSG_END_TASK (0)  ///< Код команды завершения задачи.
 #define MSG_SEND_DATA (1) ///< Код команды отправки данных.
+#define MSG_485_TIMEOUT (2)
 
 /*
  * Параметры задач
@@ -56,6 +58,9 @@ struct SRS485Config
 	int8_t pin_tx = 43;								///< Номер вывода TX
 	int8_t pin_rx = 44;								///< Номер вывода RX
 	int8_t pin_de = 40;								///< Номер вывода DE
+#if CONFIG_PM_ENABLE
+	uint32_t blockSleep = 0;
+#endif
 };
 
 /// Класс управления RS485 через UART.
@@ -64,6 +69,7 @@ class CRS485Task : public CBaseTask
 protected:
 #if CONFIG_PM_ENABLE
 	esp_pm_lock_handle_t mPMLock; ///< флаг запрета на понижение частоты CPU
+	CSoftwareTimer *mRS485Timer = nullptr;
 #endif
 	SRS485Config mConfig; ///< Конфигурация драйвера rs-485
 
@@ -100,7 +106,4 @@ public:
 	  \return true в случае успеха.
 	*/
 	bool sendData(char *data, size_t size, TickType_t xTicksToWait = 1);
-
-	/// Инициализация перед light sleep.
-	void wakeupConfig();
 };
