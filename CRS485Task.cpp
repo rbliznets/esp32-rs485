@@ -327,6 +327,17 @@ void CRS485Task::run()
 endTask:
 	deinitUart();
 	xQueueRemoveFromSet(mTaskQueue, mQueueSet);
+	while (getMessage(&msg))
+	{
+		switch (msg.msgID)
+		{
+		case MSG_SEND_DATA:
+			vPortFree(msg.msgBody);
+			break;
+		default:
+			break;
+		}
+	}
 }
 
 bool CRS485Task::sendData(char *data, size_t size, TickType_t xTicksToWait)
