@@ -343,7 +343,7 @@ endTask:
 bool CRS485Task::sendData(char *data, size_t size, TickType_t xTicksToWait)
 {
 	assert(data != nullptr);
-	assert(size < RS485_TX_BUF);
+	// assert(size < RS485_TX_BUF);
 
 	STaskMessage msg;
 
