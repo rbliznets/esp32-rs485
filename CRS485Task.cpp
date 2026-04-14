@@ -13,6 +13,8 @@
 #include "esp_sleep.h"
 #include <cstring>
 
+static const char *TAG = "CRS485Task";
+
 CRS485Task::CRS485Task(SRS485Config *cfg) : CBaseTask()
 {
 	std::memcpy(&mConfig, cfg, sizeof(SRS485Config));
@@ -205,23 +207,23 @@ void CRS485Task::run()
 #endif
 					break;
 				case UART_FIFO_OVF:
-					TRACE_W("CRS485Task: HW FIFO Overflow", event.type, false);
+					ESP_LOGW(TAG, "CRS485Task: HW FIFO Overflow");
 					uart_flush_input(mConfig.port);
 					xQueueReset(m_uart_queue);
 					break;
 				case UART_BUFFER_FULL:
-					TRACE_W("CRS485Task: Ring Buffer Full", event.type, false);
+					ESP_LOGW(TAG, "CRS485Task: Ring Buffer Full");
 					uart_flush_input(mConfig.port);
 					xQueueReset(m_uart_queue);
 					break;
 				case UART_BREAK:
-					TRACE_W("CRS485Task: Rx Break", event.type, false);
+					ESP_LOGW(TAG, "CRS485Task: Rx Break");
 					break;
 				case UART_PARITY_ERR:
-					TRACE_W("CRS485Task: Parity Error", event.type, false);
+					ESP_LOGW(TAG, "CRS485Task: Parity Error");
 					break;
 				case UART_FRAME_ERR:
-					TRACE_W("CRS485Task: Frame Error", event.type, false);
+					ESP_LOGW(TAG, "CRS485Task: Frame Error");
 					break;
 				case UART_PATTERN_DET:
 					break;
@@ -238,7 +240,7 @@ void CRS485Task::run()
 #endif
 					break;
 				default:
-					TRACE_WARNING("CRS485Task unknown uart event type", event.type);
+					ESP_LOGW(TAG, "CRS485Task unknown uart event type %d", event.type);
 					break;
 				}
 			}
@@ -271,7 +273,7 @@ void CRS485Task::run()
 							{
 								if (collision_flag)
 								{
-									TRACE_E("CRS485Task collision", collision_flag, false);
+									ESP_LOGW(TAG, "CRS485Task collision");
 									sendMessageFront(&msg, 0, true);
 									break;
 								}
@@ -279,7 +281,7 @@ void CRS485Task::run()
 						}
 						else
 						{
-							TRACE_E("uart_wait_tx_done", -1, false);
+							ESP_LOGE(TAG, "uart_wait_tx_done");
 						}
 						vPortFree(msg.msgBody);
 					}
@@ -308,7 +310,7 @@ void CRS485Task::run()
 				case MSG_END_TASK:
 					goto endTask;
 				default:
-					TRACE_WARNING("CRS485Task:unknown message", msg.msgID);
+					ESP_LOGW(TAG,"CRS485Task:unknown message %d", msg.msgID);
 					break;
 				}
 				if (collision_flag)
