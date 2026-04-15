@@ -15,8 +15,8 @@
 #include "esp_pm.h"
 #include "driver/uart.h"
 
-#define RS485_TX_BUF (1024) ///< Размер буфера UART на передачу.
-#define RS485_RX_BUF (1024) ///< Размер буфера UART на прием.
+#define RS485_TX_BUF (4*1024) ///< Размер буфера UART на передачу.
+#define RS485_RX_BUF (4*1024) ///< Размер буфера UART на прием.
 #define RS485_EVEN_BUF (20) ///< Размер очереди UART.
 
 #define RS485_DATA_BUF (RS485_RX_BUF) ///< Максимальный размер принимаемого пакета.
